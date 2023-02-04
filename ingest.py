@@ -14,89 +14,86 @@ def clean_data(data):
     text = soup.find_all("main", {"id": "main-content"})[0].get_text()
     return "\n".join([t for t in text.split("\n") if t])
 
-
-docs = []
-metadatas = []
-for p in Path("langchain.readthedocs.io/en/latest/").rglob("*"):
-    if p.is_dir():
-        continue
-    with open(p) as f:
-        docs.append(clean_data(f.read()))
-        metadatas.append({"source": p})
-
-
-text_splitter = CharacterTextSplitter(
-    separator="\n",
-    chunk_size=1000,
-    chunk_overlap=200,
-    length_function=len,
-)
-
-documents = text_splitter.create_documents(docs, metadatas=metadatas)
+def ingest_docs(docs_dir):
+    """Ingest all the documents in a directory into Weaviate."""
+    docs = []
+    metadatas = []
+    for p in Path(docs_dir).rglob("*"):
+        if p.is_dir():
+            continue
+        with open(p) as f:
+            try:
+                contents = f.read()
+            except UnicodeDecodeError as e:
+                logging.error("Skipping %s; UnicodeDecodeError %s", p, e)
+                continue
+            docs.append(clean_data(contents))
+            metadatas.append({"source": p})
 
 
-WEAVIATE_URL = os.environ["WEAVIATE_URL"]
-client = weaviate.Client(
-    url=WEAVIATE_URL,
-    additional_headers={"X-OpenAI-Api-Key": os.environ["OPENAI_API_KEY"]},
-)
+    text_splitter = CharacterTextSplitter(
+        separator="\n",
+        chunk_size=1000,
+        chunk_overlap=200,
+        length_function=len,
+    )
 
-try:
-    client.schema.delete_class("Paragraph")
-except weaviate.exceptions.UnexpectedStatusCodeException as e:
-    if e.status_code == 400:
-        # If this is the first time running this script, the class does not exist yet.
-        logging.info("Class Paragraph does not exist yet.")
-    else:
-        raise
+    documents = text_splitter.create_documents(docs, metadatas=metadatas)
 
-client.schema.get()
-schema = {
-    "classes": [
-        {
-            "class": "Paragraph",
-            "description": "A written paragraph",
-            "vectorizer": "text2vec-openai",
-            "moduleConfig": {
-                "text2vec-openai": {
-                    "model": "ada",
-                    "modelVersion": "002",
-                    "type": "text",
-                }
+
+    WEAVIATE_URL = os.environ["WEAVIATE_URL"]
+    client = weaviate.Client(
+        url=WEAVIATE_URL,
+        additional_headers={"X-OpenAI-Api-Key": os.environ["OPENAI_API_KEY"]},
+    )
+
+    client.schema.get()
+    schema = {
+        "classes": [
+            {
+                "class": "Paragraph",
+                "description": "A written paragraph",
+                "vectorizer": "text2vec-openai",
+                "moduleConfig": {
+                    "text2vec-openai": {
+                        "model": "ada",
+                        "modelVersion": "002",
+                        "type": "text",
+                    }
+                },
+                "properties": [
+                    {
+                        "dataType": ["text"],
+                        "description": "The content of the paragraph",
+                        "moduleConfig": {
+                            "text2vec-openai": {
+                                "skip": False,
+                                "vectorizePropertyName": False,
+                            }
+                        },
+                        "name": "content",
+                    },
+                    {
+                        "dataType": ["text"],
+                        "description": "The link",
+                        "moduleConfig": {
+                            "text2vec-openai": {
+                                "skip": True,
+                                "vectorizePropertyName": False,
+                            }
+                        },
+                        "name": "source",
+                    },
+                ],
             },
-            "properties": [
-                {
-                    "dataType": ["text"],
-                    "description": "The content of the paragraph",
-                    "moduleConfig": {
-                        "text2vec-openai": {
-                            "skip": False,
-                            "vectorizePropertyName": False,
-                        }
-                    },
-                    "name": "content",
-                },
-                {
-                    "dataType": ["text"],
-                    "description": "The link",
-                    "moduleConfig": {
-                        "text2vec-openai": {
-                            "skip": True,
-                            "vectorizePropertyName": False,
-                        }
-                    },
-                    "name": "source",
-                },
-            ],
-        },
-    ]
-}
+        ]
+    }
 
-client.schema.create(schema)
+    client.schema.create(schema)
 
-with client.batch as batch:
-    for text in documents:
-        batch.add_data_object(
-            {"content": text.page_content, "source": str(text.metadata["source"])},
-            "Paragraph",
-        )
+    with client.batch as batch:
+        for text in documents:
+            batch.add_data_object(
+                {"content": text.page_content, "source": str(text.metadata["source"])},
+                "Paragraph",
+            )
