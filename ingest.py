@@ -30,10 +30,10 @@ class Ingester:
         if weaviate_url is None:
             weaviate_url = os.environ["WEAVIATE_URL"]
         
-        self.weviate_url = weaviate_url
+        self.weaviate_url = weaviate_url
     
         if openai_api_key is None:
-            openenai_api_key = os.environ["OPENAI_API_KEY"]
+            openai_api_key = os.environ["OPENAI_API_KEY"]
         self.openai_api_key = openai_api_key
 
     def ingest_docs(self, docs_dir):
@@ -109,7 +109,13 @@ class Ingester:
             ]
         }
 
-        client.schema.create(schema)
+        try:
+            client.schema.create(schema)
+        except weaviate.exceptions.UnexpectedStatusCodeException as e:
+            if e.status_code == 422:
+                logging.info("Schema already exists")
+            else:
+                raise
 
         with client.batch as batch:
             for text in documents:

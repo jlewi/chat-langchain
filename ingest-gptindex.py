@@ -43,3 +43,5 @@ if __name__ == "__main__":
 
       with open(sentinel, "w") as f:
         f.write("Indexed on " + datetime.datetime.now().isoformat())
+
+      logging.info("Done indexing site %s", s)
