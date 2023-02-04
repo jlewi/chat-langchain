@@ -38,7 +38,8 @@ if __name__ == "__main__":
         continue
 
       logging.info("Indexing site %s", s)
-      ingest.ingest_docs(os.path.join(data_dir, hostname))
+      ingester = ingest.Ingester()
+      ingester.ingest_docs(os.path.join(data_dir, hostname))
 
       with open(sentinel, "w") as f:
         f.write("Indexed on " + datetime.datetime.now().isoformat())
