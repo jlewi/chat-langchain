@@ -5,6 +5,8 @@ import gradio as gr
 import langchain
 import weaviate
 from langchain.vectorstores import Weaviate
+from fastapi import FastAPI
+app = FastAPI()
 
 from chain import get_new_chain1
 

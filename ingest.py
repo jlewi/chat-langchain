@@ -118,6 +118,7 @@ class Ingester:
                 raise
 
         with client.batch as batch:
+            logging.info("Ingesting %s documents", len(documents))
             for text in documents:
                 batch.add_data_object(
                     {"content": text.page_content, "source": str(text.metadata["source"])},

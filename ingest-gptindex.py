@@ -25,7 +25,8 @@ if __name__ == "__main__":
       os.makedirs(data_dir)
 
     sites = [
-      "https://gpt-index.readthedocs.io/en/latest/"      
+      "https://gpt-index.readthedocs.io/en/latest/",
+      "https://langchain.readthedocs.io/en/latest/",
     ]
     for s in sites:
       fetch_site(s)
